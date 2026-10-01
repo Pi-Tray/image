@@ -8,6 +8,7 @@ on:
   # checks for a new Raspberry Pi OS Lite release every monday, and only builds if there is one
   schedule:
     - cron: "0 6 * * 1"
+  # TODO: trigger to rebuild on new release/tag of client
 
 permissions:
   contents: write
