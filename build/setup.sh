@@ -10,6 +10,10 @@ printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod +x /usr/sbin/policy-rc.d
 
 apt-get update
+
+# bake in updates released since the base image, as the kiosk never updates itself
+apt-get full-upgrade -y
+
 apt-get install -y --no-install-recommends xserver-xorg xinit x11-xserver-utils unclutter chromium
 
 # no password, so it can only be used through the autologin on the screen
