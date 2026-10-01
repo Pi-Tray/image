@@ -75,7 +75,7 @@ rm -f "$root_mount/tmp/setup.sh" "$root_mount/etc/resolv.conf"
 cp --no-dereference "$resolv_backup" "$root_mount/etc/resolv.conf"
 
 echo "==> Checking for leaked secrets and missing pieces"
-"$script_dir/check-image.sh" "$root_mount"
+bash "$script_dir/check-image.sh" "$root_mount"
 
 echo "==> Unmounting"
 cleanup_partitions() {
