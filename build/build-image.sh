@@ -9,7 +9,8 @@ client_dist_dir=$(realpath "$1")
 output_dir=$(realpath -m "$2")
 script_dir=$(dirname "$(realpath "$0")")
 
-base_image_url="https://downloads.raspberrypi.com/raspios_lite_arm64_latest"
+# CI passes the exact url it checked, otherwise use whatever is latest
+base_image_url="${3:-https://downloads.raspberrypi.com/raspios_lite_arm64_latest}"
 
 # chromium and X need roughly 600MB on top of the base image, the rest is headroom
 extra_space="1536M"
