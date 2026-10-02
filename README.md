@@ -68,7 +68,7 @@ If the screen shows **Connecting...** and stays there:
 
 ## Screens
 
-- **HDMI and official DSI touchscreens** work without setup.
+- **HDMI and official DSI touchscreens (or any compatible 3rd party clones)** work without setup.
 - **Other DSI or SPI screens** may need a `dtoverlay=` line in `config.txt` on the bootfs drive. Check your screen maker's instructions.
 - **A screen must be connected when the Pi boots**, otherwise the kiosk won't start until the next reboot.
 
