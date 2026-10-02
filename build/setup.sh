@@ -16,8 +16,10 @@ apt-get full-upgrade -y
 
 apt-get install -y --no-install-recommends xserver-xorg xinit x11-xserver-utils unclutter chromium
 
-# no password, so it can only be used through the autologin on the screen
-useradd --create-home --shell /bin/bash --groups video,input,render,audio pi-tray
+# a system account (uid below 1000): raspberry pi os's first boot setup counts every regular user and
+# falls back to its interactive rename wizard if there's more than the one Imager renames into your admin
+# no password, so it can only be used by the kiosk service on the screen
+useradd --system --create-home --home-dir /home/pi-tray --shell /bin/bash --groups video,input,render,audio pi-tray
 
 # shown on screen just before the kiosk starts, and left there if it can't start
 cat > /usr/local/bin/pi-tray-boot-message <<'CONF'
@@ -40,7 +42,6 @@ CONF
 chmod +x /usr/local/bin/pi-tray-boot-message
 
 # runs the kiosk as its own service on tty1, rather than autologin on a getty
-# raspberry pi os's first boot user setup rewrites getty autologin, but leaves this alone
 cat > /etc/systemd/system/pi-tray-kiosk.service <<'CONF'
 [Unit]
 Description=Pi-Tray kiosk
@@ -54,6 +55,9 @@ User=pi-tray
 WorkingDirectory=/home/pi-tray
 # a real login session on tty1, which lets X start without root
 PAMName=login
+# system accounts get a cut-down "user-light" session by default, with no per-user service manager,
+# so ask for a full one like a normal desktop login
+Environment=XDG_SESSION_CLASS=user
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
@@ -71,13 +75,13 @@ RestartSec=2
 WantedBy=multi-user.target
 CONF
 
-# the image ships with an empty machine-id, so systemd treats the first boot as a fresh install and re-applies
-# its enable/disable presets to every unit, which would undo a plain enable/disable
+# keeps the kiosk enabled even if systemd re-applies unit presets on first boot
 mkdir -p /etc/systemd/system-preset
 echo "enable pi-tray-kiosk.service" > /etc/systemd/system-preset/10-pi-tray.preset
 systemctl enable pi-tray-kiosk.service
 
-# masking survives presets, unlike disabling. autovt is the getty logind starts on demand for a free vt
+# first boot's user rename (userconf-pi's cancel-rename) enables and starts getty@tty1, which would take the
+# screen from the kiosk. masking makes that fail harmlessly. autovt is the getty logind starts for a free vt
 systemctl mask getty@tty1.service autovt@tty1.service
 
 cat > /home/pi-tray/.xinitrc <<'CONF'
@@ -115,6 +119,9 @@ CONF
 
 chown -R root:root /opt/pi-tray
 chmod -R a+rX /opt/pi-tray
+
+# quiet boot: no kernel text or blinking cursor on screen before the kiosk appears
+sed -i '1 s/$/ quiet loglevel=3 logo.nologo vt.global_cursor_default=0/' /boot/firmware/cmdline.txt
 
 # leave nothing behind that identifies the build machine or bloats the image
 rm -f /usr/sbin/policy-rc.d
