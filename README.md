@@ -2,7 +2,7 @@
 
 A ready-to-flash Raspberry Pi OS Lite image that boots straight into the [Pi-Tray client](https://github.com/Pi-Tray/client) in kiosk mode.
 
-It runs well on a 1GB Pi: there's no desktop, just Chromium on a bare X server. You of course can skip this image and manually setup Pi-Tray Client how you wish, but the image serves as a convenient and lightweight way to get going.
+It runs well on a 1GB Pi: there's no desktop, just Chromium on a bare X server. You can of course skip this image and set up Pi-Tray Client however you like, but the image is a convenient and lightweight way to get going.
 
 You'll also need [Pi-Tray Server](https://github.com/Pi-Tray/server) running on the PC you want to control.
 
@@ -10,22 +10,38 @@ You'll also need [Pi-Tray Server](https://github.com/Pi-Tray/server) running on 
 
 - Raspberry Pi OS Lite (64-bit), with all updates available at build time
 - The Pi-Tray client, served from the SD card, so the Pi doesn't need internet access
-- A `pi-tray` user that logs in automatically on the screen and has no password, so it can't be logged into over the network
-- Chromium in kiosk mode, with the cursor hidden and screen blanking disabled
+- Chromium in kiosk mode, started on the screen by a service that restarts it if it ever crashes, with the cursor hidden and screen blanking disabled
+- A screen-only `pi-tray` account with no password, which SSH refuses
+- Optional admin account setup through Raspberry Pi Imager or an `admin.txt` file
 
-The image deliberately contains **no** admin account, passwords, SSH keys or Wi-Fi details. You add your own when flashing, so nobody else's credentials end up on your Pi.
+The image deliberately contains **no** admin account, passwords, SSH keys or Wi-Fi details. You add your own if you want them, so nobody else's credentials end up on your Pi.
 
 ## Flashing
 
-1. Download the latest `.img.xz` from [Releases](../../releases). There's no need to unzip it.
-2. Open [Raspberry Pi Imager](https://www.raspberrypi.com/software/), choose your Pi model, then **Choose OS → Use Custom** and select the file.
+There are two ways to flash it. Both give you a working touchscreen. They differ in whether Raspberry Pi Imager can set up an admin account, SSH and Wi-Fi for you.
+
+### Option 1: through Pi-Tray's repository (recommended)
+
+This lets Imager apply your settings.
+
+1. Open [Raspberry Pi Imager](https://www.raspberrypi.com/software/). In its app options, set a custom repository to:
+   ```
+   https://github.com/Pi-Tray/image/releases/latest/download/os_list.json
+   ```
+   Or start Imager with `rpi-imager --repo <that address>`.
+2. Choose your Pi model, then pick **Pi-Tray** from the OS list.
 3. Choose your SD card, then select **Edit Settings** when Imager asks about OS customisation:
-   - **General:** set a username and password (this is your admin account), Wi-Fi if you want it, and your time zone and keyboard layout.
+   - **General:** set a username and password (this is your admin account), and Wi-Fi if you want it.
    - **Services:** enable SSH. Public-key authentication is recommended. Paste in your public key.
 4. Write the card.
 
-> **Tip:** to list Pi-Tray in Imager's normal OS menu, start Imager with
-> `rpi-imager --repo https://github.com/Pi-Tray/image/releases/latest/download/os_list.json`.
+### Option 2: Use Custom
+
+1. Download the latest `.img.xz` from [Releases](../../releases). There's no need to unzip it.
+2. In Imager, choose your Pi model, then **Choose OS → Use Custom** and select the file.
+3. Choose your SD card and write it.
+
+Imager doesn't apply its settings to images chosen through **Use Custom**, even if it shows them. The Pi still boots straight into Pi-Tray, but with no admin account or SSH. To add one, see [Admin account](#admin-account-optional) below. To set up Wi-Fi, edit `network-config` on the bootfs drive before the first boot. The file has commented examples, and the [direct ethernet](#direct-ethernet-connection-optional) section shows the format.
 
 ## Pointing it at your PC
 
@@ -56,9 +72,32 @@ Then give your PC's ethernet adapter `192.168.50.1` with subnet mask `255.255.25
 
 This file is only read on the first boot. To change it afterwards, reflash or use `nmtui` over SSH.
 
+## Admin account (optional)
+
+You only need an admin account for SSH access and system changes. The touchscreen works without one.
+
+If you didn't set one up in Imager, or you want to change it later, copy `admin.example.txt` on the bootfs drive to `admin.txt`, fill it in, and boot the Pi:
+
+```
+username: admin
+password: change-me
+ssh_key: ssh-ed25519 AAAA... you@your-pc
+```
+
+- **username** is required. Use lower-case letters, digits and hyphens, starting with a letter.
+- **password** is optional. Use a plain password, or a hash starting with `$` (for example from `openssl passwd -6`).
+- **ssh_key** is optional and can be repeated. Use your **public** key, such as the contents of `id_ed25519.pub`.
+- **force_password_change** is optional (`yes` or `no`). It defaults to `yes` for plain passwords, so the one in the file only works for the first login. It defaults to `no` for hashes.
+
+You need a password, an `ssh_key`, or both. An account with only keys gets sudo without a password. Keys are the safest choice, as nothing secret has to be written on the card.
+
+`admin.txt` is read on boot and then deleted, and SSH is turned on. It's checked on every boot, so you can add it again at any time to reset a forgotten password or add another key. If something's wrong with the file, an `admin.failed.txt` appears in its place explaining why.
+
 ## First boot
 
-The first boot takes a couple of minutes and reboots once while it applies your settings. After that, Pi-Tray opens on its own and connects to the server.
+The first boot can take a couple of minutes while the Pi sets itself up. After that, Pi-Tray opens on its own and connects to the server.
+
+While it starts, the screen shows a short message with the Pi's IP address. If that message stays on screen, the kiosk couldn't start. Press **Ctrl+Alt+F2** to log in on the Pi itself, or connect over SSH and run `journalctl -u pi-tray-kiosk -b` to see why.
 
 If the screen shows **Connecting...** and stays there:
 
@@ -68,9 +107,9 @@ If the screen shows **Connecting...** and stays there:
 
 ## Screens
 
-- **HDMI and official DSI touchscreens (or any compatible 3rd party clones)** work without setup.
+- **HDMI and official DSI touchscreens (or compatible third-party clones)** work without setup.
 - **Other DSI or SPI screens** may need a `dtoverlay=` line in `config.txt` on the bootfs drive. Check your screen maker's instructions.
-- **A screen must be connected when the Pi boots**, otherwise the kiosk won't start until the next reboot.
+- **DSI screens need to be connected when the Pi boots.** The kiosk keeps retrying until a screen is available, so an HDMI screen can be plugged in later.
 
 ## Building it yourself
 
@@ -92,4 +131,4 @@ sudo bash ./build/build-image.sh client/dist out
 
 The image and `os_list.json` end up in `out/`.
 
-Every build runs `build/check-image.sh`, which fails the build if the image contains SSH host keys, `authorized_keys`, password hashes, a machine ID, shell history or Wi-Fi passwords, or if any part of the kiosk is missing.
+Every build runs `build/check-image.sh`. It fails the build if the image contains SSH host keys, `authorized_keys`, password hashes, a machine ID, shell history, Wi-Fi passwords or an `admin.txt`, or if any part of the kiosk or its first-boot setup is missing.
