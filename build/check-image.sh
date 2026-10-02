@@ -46,6 +46,10 @@ fi
 [ -f "$root_dir/opt/pi-tray/client/index.html" ] || fail "client index.html is missing"
 [ -x "$root_dir/home/pi-tray/.xinitrc" ] || fail ".xinitrc is missing or not executable"
 [ -L "$root_dir/etc/systemd/system/multi-user.target.wants/pi-tray-kiosk.service" ] || fail "kiosk service isn't enabled"
+[ "$(readlink "$root_dir/etc/systemd/system/getty@tty1.service")" = "/dev/null" ] || fail "getty on tty1 isn't masked"
+[ "$(readlink "$root_dir/etc/systemd/system/autovt@tty1.service")" = "/dev/null" ] || fail "autovt on tty1 isn't masked"
+grep -qs "enable pi-tray-kiosk.service" "$root_dir/etc/systemd/system-preset/10-pi-tray.preset" || fail "kiosk preset is missing, first boot would undo the enable"
+[ -x "$root_dir/usr/local/bin/pi-tray-boot-message" ] || fail "boot message script is missing or not executable"
 [ -f "$root_dir/boot/firmware/pi-tray.txt" ] || fail "pi-tray.txt is missing from the boot partition"
 
 for binary in chromium startx unclutter xset; do
