@@ -41,6 +41,18 @@ if grep -rqs "psk=" "$root_dir/etc/NetworkManager/system-connections"; then
     fail "a wifi password is present"
 fi
 
+pi_tray_uid=$(awk -F: '$1 == "pi-tray" { print $3 }' "$root_dir/etc/passwd")
+if [ -z "$pi_tray_uid" ] || [ "$pi_tray_uid" -ge 1000 ]; then
+    fail "pi-tray must be a system user (uid below 1000), or first boot falls back to the rename wizard"
+fi
+
+regular_users=$(awk -F: '$3 >= 1000 && $1 != "nobody"' "$root_dir/etc/passwd" | wc -l)
+if [ "$regular_users" -ne 1 ]; then
+    fail "expected exactly one regular user (the one Imager renames), found $regular_users"
+fi
+
+grep -qs "DenyUsers pi-tray" "$root_dir/etc/ssh/sshd_config.d/10-pi-tray.conf" || fail "ssh doesn't deny the pi-tray account"
+
 # --- the kiosk is complete ---
 
 [ -f "$root_dir/opt/pi-tray/client/index.html" ] || fail "client index.html is missing"
@@ -48,7 +60,7 @@ fi
 [ -L "$root_dir/etc/systemd/system/multi-user.target.wants/pi-tray-kiosk.service" ] || fail "kiosk service isn't enabled"
 [ "$(readlink "$root_dir/etc/systemd/system/getty@tty1.service")" = "/dev/null" ] || fail "getty on tty1 isn't masked"
 [ "$(readlink "$root_dir/etc/systemd/system/autovt@tty1.service")" = "/dev/null" ] || fail "autovt on tty1 isn't masked"
-grep -qs "enable pi-tray-kiosk.service" "$root_dir/etc/systemd/system-preset/10-pi-tray.preset" || fail "kiosk preset is missing, first boot would undo the enable"
+grep -qs "enable pi-tray-kiosk.service" "$root_dir/etc/systemd/system-preset/10-pi-tray.preset" || fail "kiosk preset is missing"
 [ -x "$root_dir/usr/local/bin/pi-tray-boot-message" ] || fail "boot message script is missing or not executable"
 [ -f "$root_dir/boot/firmware/pi-tray.txt" ] || fail "pi-tray.txt is missing from the boot partition"
 
