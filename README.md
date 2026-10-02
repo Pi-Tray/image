@@ -72,26 +72,59 @@ Then give your PC's ethernet adapter `192.168.50.1` with subnet mask `255.255.25
 
 This file is only read on the first boot. To change it afterwards, reflash or use `nmtui` over SSH.
 
-## Admin account (optional)
+## Admin accounts (optional)
 
 You only need an admin account for SSH access and system changes. The touchscreen works without one.
 
-If you didn't set one up in Imager, or you want to change it later, copy `admin.example.txt` on the bootfs drive to `admin.txt`, fill it in, and boot the Pi:
+If you didn't set one up in Imager, or you want to change things later, copy `admin.example.txt` on the bootfs drive to `admin.txt`, fill it in, and boot the Pi:
 
-```
-username: admin
-password: change-me
-ssh_key: ssh-ed25519 AAAA... you@your-pc
-```
+    username: admin
+    password: change-me
+    ssh_key: ssh-ed25519 AAAA... you@your-pc
 
-- **username** is required. Use lower-case letters, digits and hyphens, starting with a letter.
+`admin.txt` is read on boot and then deleted, and SSH is turned on. It's checked on every boot, so you can add it again at any time to reset a forgotten password, add a key, or add another account. If something's wrong with the file, nothing is changed and an `admin.failed.txt` appears in its place explaining why.
+
+### Account settings
+
+Everything before the first `[section]` is the main account. Each `[name]` section adds another account, named by its heading.
+
+- **username** is the main account's name. Use lower-case letters, digits and hyphens, starting with a letter. Sections don't need it, as the heading is the name.
 - **password** is optional. Use a plain password, or a hash starting with `$` (for example from `openssl passwd -6`).
-- **ssh_key** is optional and can be repeated. Use your **public** key, such as the contents of `id_ed25519.pub`.
+- **ssh_key** is optional and can be repeated. Use your **public** key, such as the contents of `id_ed25519.pub`. Keys that are already there aren't added twice.
 - **force_password_change** is optional (`yes` or `no`). It defaults to `yes` for plain passwords, so the one in the file only works for the first login. It defaults to `no` for hashes.
+- **sudo** is optional (`yes` or `no`). New main accounts default to `yes`, and new extra accounts to `no`.
+- **ssh** is optional (`yes` or `no`). It defaults to `yes` for new accounts. `no` keeps the account but blocks it from SSH.
 
-You need a password, an `ssh_key`, or both. An account with only keys gets sudo without a password. Keys are the safest choice, as nothing secret has to be written on the card.
+New accounts need a password, an `ssh_key`, or both. Admins with only keys get sudo without a password, as there's no password for sudo to ask for.
 
-`admin.txt` is read on boot and then deleted, and SSH is turned on. It's checked on every boot, so you can add it again at any time to reset a forgotten password or add another key. If something's wrong with the file, an `admin.failed.txt` appears in its place explaining why.
+Leaving `sudo` or `ssh` out keeps an existing account's current setting, so a file that only adds a key doesn't change anything else about that account.
+
+### SSH settings
+
+These go before the first `[section]` and apply to all accounts. They're kept until a later `admin.txt` changes them.
+
+- **ssh_password_login** is optional (`yes` or `no`). With `no`, only keys can log in over SSH.
+- **ssh_port** is optional, and sets the port SSH listens on. The default is 22.
+
+Any change that would leave no way to log in over SSH is refused. For example, `ssh_password_login: no` is only accepted if some account that's allowed over SSH has a key. A mistake can't lock you out.
+
+### Example
+
+A main account that can't log in over SSH, a separate SSH account with admin rights, keys only, and a non-standard port:
+
+    ssh_password_login: no
+    ssh_port: 2244
+
+    username: admin
+    password: change-me
+    ssh_key: ssh-ed25519 AAAA... you@your-pc
+    ssh: no
+
+    [sshuser]
+    ssh_key: ssh-ed25519 AAAA... you@your-pc
+    sudo: yes
+
+Keys are the safest choice, as nothing secret has to be written on the card.
 
 ## First boot
 
