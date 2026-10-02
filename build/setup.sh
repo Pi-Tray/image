@@ -21,6 +21,10 @@ apt-get install -y --no-install-recommends xserver-xorg xinit x11-xserver-utils 
 # no password, so it can only be used by the kiosk service on the screen
 useradd --system --create-home --home-dir /home/pi-tray --shell /bin/bash --groups video,input,render,audio pi-tray
 
+# the kiosk account is for the screen only, never accept it over ssh
+mkdir -p /etc/ssh/sshd_config.d
+echo "DenyUsers pi-tray" > /etc/ssh/sshd_config.d/10-pi-tray.conf
+
 # shown on screen just before the kiosk starts, and left there if it can't start
 cat > /usr/local/bin/pi-tray-boot-message <<'CONF'
 #!/bin/sh
