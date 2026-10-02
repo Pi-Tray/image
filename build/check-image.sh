@@ -45,7 +45,7 @@ fi
 
 [ -f "$root_dir/opt/pi-tray/client/index.html" ] || fail "client index.html is missing"
 [ -x "$root_dir/home/pi-tray/.xinitrc" ] || fail ".xinitrc is missing or not executable"
-[ -f "$root_dir/etc/systemd/system/getty@tty1.service.d/autologin.conf" ] || fail "autologin override is missing"
+[ -L "$root_dir/etc/systemd/system/multi-user.target.wants/pi-tray-kiosk.service" ] || fail "kiosk service isn't enabled"
 [ -f "$root_dir/boot/firmware/pi-tray.txt" ] || fail "pi-tray.txt is missing from the boot partition"
 
 for binary in chromium startx unclutter xset; do
