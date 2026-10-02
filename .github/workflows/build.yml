@@ -5,13 +5,21 @@ on:
   push:
     tags:
       - "v*"
+  # releases made in GitHub's web UI, so their images are built and attached to them
+  release:
+    types:
+      - published
   # checks for a new Raspberry Pi OS Lite release every monday, and only builds if there is one
   schedule:
     - cron: "0 6 * * 1"
-  # TODO: trigger to rebuild on new release/tag of client
 
 permissions:
   contents: write
+
+# a release made in the web UI can also fire a tag push, so runs for the same release wait for each other
+# rather than racing to upload the same files
+concurrency:
+  group: build-${{ github.event.release.tag_name || github.ref_name }}
 
 jobs:
   check:
@@ -47,6 +55,11 @@ jobs:
               echo "should_build=true" >> "$GITHUB_OUTPUT"
             fi
 
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            # the release already exists, the build just attaches its files to it
+            release_tag="${{ github.event.release.tag_name }}"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           else
             release_tag="${{ github.ref_name }}"
@@ -113,4 +126,12 @@ jobs:
         if: needs.check.outputs.should_publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ needs.check.outputs.release_tag }}" out/* --repo "${{ github.repository }}" --title "${{ needs.check.outputs.release_tag }}" --generate-notes
+        run: |
+          release_tag="${{ needs.check.outputs.release_tag }}"
+
+          # a release made in the web UI already exists, so attach to it, otherwise create one
+          if gh release view "$release_tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release upload "$release_tag" out/* --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$release_tag" out/* --repo "${{ github.repository }}" --title "$release_tag" --generate-notes
+          fi
