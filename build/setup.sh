@@ -314,7 +314,8 @@ cat > /etc/systemd/system/pi-tray-admin.service <<'CONF'
 [Unit]
 Description=Set up an admin account from admin.txt on the boot drive
 # host keys must exist before ssh is enabled, and cloud-init may be creating a user from Imager's settings
-After=boot-firmware.mount regenerate_ssh_host_keys.service cloud-final.service
+# cloud-init creates Imager's user in its network stage, cloud-init.service on older versions
+After=boot-firmware.mount regenerate_ssh_host_keys.service cloud-init.service cloud-init-network.service
 ConditionPathExists=/boot/firmware/admin.txt
 
 [Service]
@@ -359,7 +360,8 @@ unclutter -idle 0.5 -root &
 
 # the server address lives on the boot partition so it can be changed from any computer
 # tr strips the carriage returns windows editors add, and comment lines are ignored
-server_url=$(grep -v '^[[:space:]]*#' /boot/firmware/pi-tray.txt 2>/dev/null | tr -d '\r[:space:]' | head -n 1)
+# don't forget the BOM
+server_url=$(sed '1s/^\xEF\xBB\xBF//' /boot/firmware/pi-tray.txt 2>/dev/null | grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*\r\?$' | head -n 1 | tr -d '\r[:space:]')
 
 exec chromium \
     --kiosk \
