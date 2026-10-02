@@ -19,18 +19,36 @@ apt-get install -y --no-install-recommends xserver-xorg xinit x11-xserver-utils 
 # no password, so it can only be used through the autologin on the screen
 useradd --create-home --shell /bin/bash --groups video,input,render,audio pi-tray
 
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<'CONF'
+# runs the kiosk as its own service on tty1, rather than autologin on a getty
+# raspberry pi os's first boot user setup rewrites getty autologin, but leaves this alone
+cat > /etc/systemd/system/pi-tray-kiosk.service <<'CONF'
+[Unit]
+Description=Pi-Tray kiosk
+After=systemd-user-sessions.service plymouth-quit-wait.service getty@tty1.service
+Conflicts=getty@tty1.service
+
 [Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin pi-tray --noclear %I $TERM
+User=pi-tray
+WorkingDirectory=/home/pi-tray
+# a real login session on tty1, which lets X start without root
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+UtmpIdentifier=tty1
+UtmpMode=user
+ExecStart=/usr/bin/startx -- vt1 -keeptty -nocursor
+# comes back by itself if chromium or X ever crash
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
 CONF
 
-cat > /home/pi-tray/.bash_profile <<'CONF'
-if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
-    exec startx -- -nocursor
-fi
-CONF
+systemctl enable pi-tray-kiosk.service
+systemctl disable getty@tty1.service
 
 cat > /home/pi-tray/.xinitrc <<'CONF'
 #!/bin/sh
@@ -56,7 +74,7 @@ exec chromium \
     "file:///opt/pi-tray/client/index.html?ws=${server_url}"
 CONF
 
-chown pi-tray:pi-tray /home/pi-tray/.bash_profile /home/pi-tray/.xinitrc
+chown pi-tray:pi-tray /home/pi-tray/.xinitrc
 chmod +x /home/pi-tray/.xinitrc
 
 cat > /boot/firmware/pi-tray.txt <<'CONF'
