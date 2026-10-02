@@ -64,6 +64,12 @@ grep -qs "enable pi-tray-kiosk.service" "$root_dir/etc/systemd/system-preset/10-
 [ -x "$root_dir/usr/local/bin/pi-tray-boot-message" ] || fail "boot message script is missing or not executable"
 [ -f "$root_dir/boot/firmware/pi-tray.txt" ] || fail "pi-tray.txt is missing from the boot partition"
 
+[ -L "$root_dir/etc/systemd/system/multi-user.target.wants/pi-tray-admin.service" ] || fail "admin.txt service isn't enabled"
+[ -x "$root_dir/usr/local/sbin/pi-tray-admin-setup" ] || fail "admin.txt setup script is missing or not executable"
+[ "$(readlink "$root_dir/etc/systemd/system/userconfig.service")" = "/dev/null" ] || fail "first boot wizard isn't masked"
+[ -f "$root_dir/boot/firmware/admin.example.txt" ] || fail "admin.example.txt is missing from the boot partition"
+[ ! -e "$root_dir/boot/firmware/admin.txt" ] || fail "an admin.txt is baked into the image"
+
 for binary in chromium startx unclutter xset; do
     chroot "$root_dir" /bin/sh -c "command -v $binary" > /dev/null || fail "$binary is not installed"
 done
