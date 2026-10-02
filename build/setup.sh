@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs inside the image's chroot. Installs the kiosk and sets up autologin, but deliberately creates no
+# Runs inside the image's chroot. Installs the kiosk and its startup service, but deliberately creates no
 # admin user, passwords, ssh keys or wifi details: Raspberry Pi Imager adds those per person at flash time.
 
 set -euo pipefail
@@ -19,6 +19,26 @@ apt-get install -y --no-install-recommends xserver-xorg xinit x11-xserver-utils 
 # no password, so it can only be used through the autologin on the screen
 useradd --create-home --shell /bin/bash --groups video,input,render,audio pi-tray
 
+# shown on screen just before the kiosk starts, and left there if it can't start
+cat > /usr/local/bin/pi-tray-boot-message <<'CONF'
+#!/bin/sh
+addresses=$(hostname -I 2>/dev/null)
+
+{
+    # clear the screen and move to the top, without needing TERM set like clear does
+    printf '\033[2J\033[H'
+    echo
+    echo "  Pi-Tray is starting..."
+    echo
+    echo "  If this stays on screen, the kiosk couldn't start."
+    echo "  Press Ctrl+Alt+F2 to log in here, or connect over SSH and run:"
+    echo "    journalctl -u pi-tray-kiosk -b"
+    echo
+    echo "  This Pi's address: ${addresses:-not connected yet}"
+} > /dev/tty1
+CONF
+chmod +x /usr/local/bin/pi-tray-boot-message
+
 # runs the kiosk as its own service on tty1, rather than autologin on a getty
 # raspberry pi os's first boot user setup rewrites getty autologin, but leaves this alone
 cat > /etc/systemd/system/pi-tray-kiosk.service <<'CONF'
@@ -26,6 +46,8 @@ cat > /etc/systemd/system/pi-tray-kiosk.service <<'CONF'
 Description=Pi-Tray kiosk
 After=systemd-user-sessions.service plymouth-quit-wait.service getty@tty1.service
 Conflicts=getty@tty1.service
+# never give up restarting, a kiosk that stays dead is worse than one that keeps retrying
+StartLimitIntervalSec=0
 
 [Service]
 User=pi-tray
@@ -38,6 +60,8 @@ TTYVHangup=yes
 StandardInput=tty
 UtmpIdentifier=tty1
 UtmpMode=user
+# the + runs it as root, as the kiosk user can't write to tty1 before its session starts
+ExecStartPre=+/usr/local/bin/pi-tray-boot-message
 ExecStart=/usr/bin/startx -- vt1 -keeptty -nocursor
 # comes back by itself if chromium or X ever crash
 Restart=always
@@ -47,8 +71,14 @@ RestartSec=2
 WantedBy=multi-user.target
 CONF
 
+# the image ships with an empty machine-id, so systemd treats the first boot as a fresh install and re-applies
+# its enable/disable presets to every unit, which would undo a plain enable/disable
+mkdir -p /etc/systemd/system-preset
+echo "enable pi-tray-kiosk.service" > /etc/systemd/system-preset/10-pi-tray.preset
 systemctl enable pi-tray-kiosk.service
-systemctl disable getty@tty1.service
+
+# masking survives presets, unlike disabling. autovt is the getty logind starts on demand for a free vt
+systemctl mask getty@tty1.service autovt@tty1.service
 
 cat > /home/pi-tray/.xinitrc <<'CONF'
 #!/bin/sh
